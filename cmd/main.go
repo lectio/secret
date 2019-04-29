@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/docopt/docopt-go"
 	"github.com/lectio/secret"
@@ -13,9 +12,9 @@ var usage = `Lectio Secrets Management Utility.
 Usage:
   secret hash <text>
   secret encrypt text <text> with passwd <passPhrase> [--verbose]
-  secret encrypt text <text> with vault <vaultName> [--verbose]
+  secret encrypt text <text> with vault <vaultURL> [--verbose]
   secret decrypt text <text> with passwd <passPhrase> [--verbose]
-  secret decrypt text <text> with vault <vaultName> [--verbose]
+  secret decrypt text <text> with vault <vaultURL> [--verbose]
 
 Options:
   -h --help     Show this screen.
@@ -45,32 +44,28 @@ type config struct {
 	Passwd     bool   `docopt:"passwd"`
 	Vault      bool   `docopt:"vault"`
 	PassPhrase string `docopt:"<passPhrase>"`
-	VaultName  string `docopt:"<vaultName>"`
+	VaultURL  string `docopt:"<vaultURL>"`
 	Verbose    bool   `docopt:"-v,--verbose"`
 }
 
 func main() {
 	options := getUserOptions()
 
-	var passPhrase string
-	var ok bool
 	if options.Passwd {
-		passPhrase = options.PassPhrase
-		ok = true
-	} else if options.Vault {
-		passPhrase, ok = os.LookupEnv(options.VaultName)
-		if !ok {
-			panic("Environment variable " + options.VaultName + " not found.")
-		}
+		options.VaultURL = "passwd://" + options.PassPhrase
+	}
+	vault, err := secret.Parse(options.VaultURL)
+	if err != nil {
+		panic(fmt.Sprintf("Vault %q error: %v", options.VaultURL, err))
 	}
 
 	switch {
 	case options.Hash:
 		fmt.Println(secret.CreateHash(options.TextValue))
 	case options.Encrypt:
-		encrypted, err := secret.EncryptText(options.TextValue, passPhrase)
+		encrypted, err := vault.EncryptText(options.TextValue)
 		if options.Verbose {
-			fmt.Printf("%q encrypted with %q is %q (error: %v)\n", options.TextValue, passPhrase, encrypted, err)
+			fmt.Printf("%q encrypted with %+v is %q (error: %v)\n", options.TextValue, vault, encrypted, err)
 		} else {
 			fmt.Printf("%s", encrypted)
 			if err != nil {
@@ -78,9 +73,9 @@ func main() {
 			}
 		}
 	case options.Decrypt:
-		decrypted, err := secret.DecryptText(options.TextValue, passPhrase)
+		decrypted, err := vault.DecryptText(options.TextValue)
 		if options.Verbose {
-			fmt.Printf("%q decrypted with %q is %q (error: %v)\n", options.TextValue, passPhrase, decrypted, err)
+			fmt.Printf("%q decrypted with %+v is %q (error: %v)\n", options.TextValue, vault, decrypted, err)
 		} else {
 			fmt.Printf("%s", decrypted)
 			if err != nil {

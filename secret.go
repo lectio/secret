@@ -1,13 +1,13 @@
 package secret
 
 import (
-	"fmt"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/hex"
-	"io"	
+	"fmt"
+	"io"
 )
 
 func CreateHash(key string) string {
@@ -45,7 +45,7 @@ func DecryptText(text string, passPhrase string) (string, error) {
 	_, err := hex.Decode(encrypted, []byte(text))
 	if err != nil {
 		return "", err
-	}	
+	}
 	decrypted, err := DecryptData(encrypted, passPhrase)
 	if err != nil {
 		return "", nil
