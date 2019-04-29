@@ -56,3 +56,8 @@ func (v Vault) DecryptText(text string) (string, error) {
 		return "", fmt.Errorf("Unable to handle unknown scheme %q in %q", v.url.Scheme, v.url.String())
 	}
 }
+
+// String satisfies the stringer interface.
+func (v Vault) String() string {
+	return v.String()
+}
