@@ -8,6 +8,7 @@ import (
 )
 
 var factory sync.Map
+var plainTextVault Vault = &nullVault{}
 
 // Vault defines a URL with instructions for how to encrypt/decrypt data
 type Vault interface {
@@ -15,8 +16,12 @@ type Vault interface {
 	DecryptText(text string) (string, error) 
 }
 
+type nullVault struct {
+}
+
 type envVault struct {
-	envVar string
+	envVarName string
+	passPhrase string
 }
 
 type passPhraseVault struct {
@@ -40,47 +45,67 @@ func Parse(urlText string) (Vault, error) {
 
 	switch u.Scheme {
 	case "env":
-		vault := &envVault{envVar: u.Hostname()}
+		vault, newVaultErr := newEnvVault(u.Hostname())
+		if newVaultErr != nil {
+			return nil, newVaultErr
+		}
 		factory.Store(urlText, vault)
 		return vault, nil
 	case "passwd":
 		vault := &passPhraseVault{passPhrase: u.Hostname()}
 		factory.Store(urlText, vault)
 		return vault, nil
+	case "plain":
+		return plainTextVault, nil
 	default:
 		return nil, fmt.Errorf("Unable to handle unknown scheme %q in %q", u.Scheme, u.String())
 	}
 }
 
-// EncryptText encrypts text using instructions given in Vault URL
-func (v envVault) EncryptText(text string) (string, error) {
-	passPhrase, ok := os.LookupEnv(v.envVar)
-	if !ok {
-		return "", fmt.Errorf("secret.envVault environment variable %q not set", v.envVar)
-	}
-	return EncryptText(text, passPhrase)
+// EncryptText does not encrypt, just sends the text back as plaintext
+func (v nullVault) EncryptText(text string) (string, error) {
+	return text, nil
 }
 
-// DecryptText decrypts text using instructions given in Vault URL
-func (v envVault) DecryptText(text string) (string, error) {
-	passPhrase, ok := os.LookupEnv(v.envVar)
+// EncryptText does not decrypt, just sends the text back as plaintext
+func (v nullVault) DecryptText(text string) (string, error) {
+	return text, nil
+}
+
+// String satisfies the stringer interface.
+func (v nullVault) String() string {
+	return "plain://text"
+}
+
+func newEnvVault(envVarName string) (*envVault, error) {
+	passPhrase, ok := os.LookupEnv(envVarName)
 	if !ok {
-		return "", fmt.Errorf("secret.envVault environment variable %q not set", v.envVar)
+		return nil, fmt.Errorf("secret.newEnvVault environment variable %q not set", envVarName)
 	}
-	return DecryptText(text, passPhrase)
+	return &envVault{envVarName: envVarName, passPhrase: passPhrase}, nil
+}
+
+// EncryptText encrypts text using a passphrase given a specific the env variable
+func (v envVault) EncryptText(text string) (string, error) {
+	return EncryptText(text, v.passPhrase)
+}
+
+// DecryptText decrypts text using a passphrase given a specific the env variable
+func (v envVault) DecryptText(text string) (string, error) {
+	return DecryptText(text, v.passPhrase)
 }
 
 // String satisfies the stringer interface.
 func (v envVault) String() string {
-	return fmt.Sprintf("env://%s", v.envVar)
+	return fmt.Sprintf("env://%s", v.envVarName)
 }
 
-// EncryptText encrypts text using instructions given in Vault URL
+// EncryptText encrypts text using a literal passphrase
 func (v passPhraseVault) EncryptText(text string) (string, error) {
 	return EncryptText(text, v.passPhrase)
 }
 
-// DecryptText decrypts text using instructions given in Vault URL
+// DecryptText decrypts text using a literal passphrase
 func (v passPhraseVault) DecryptText(text string) (string, error) {
 	return DecryptText(text, v.passPhrase)
 }
